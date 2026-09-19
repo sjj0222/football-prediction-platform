@@ -1,5 +1,5 @@
-import { APP_FILTER } from '@nestjs/core';
-import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { Module, ValidationPipe } from '@nestjs/common';
 
 import { GlobalExceptionFilter } from './common/filters/exception.filter';
 import { AuthSharedModule } from './common/auth/auth-shared.module';
@@ -26,6 +26,13 @@ import { DatabaseModule } from './database/database.module';
     {
       provide: APP_FILTER,
       useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({
+        whitelist: true,
+        transform: true,
+      }),
     },
   ],
 })

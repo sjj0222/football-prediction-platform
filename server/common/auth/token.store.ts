@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../../database/database.module';
 import { eq, gt, lt, and } from 'drizzle-orm';
 import { authTokens } from '@server/database/schema';
@@ -7,18 +7,26 @@ const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const TOKEN_CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // 每小时清理一次
 
 @Injectable()
-export class TokenStore implements OnModuleInit {
+export class TokenStore implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TokenStore.name);
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
 
   onModuleInit(): void {
     // 启动定期清理过期 token
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       this.cleanupExpired().catch((err) => {
         this.logger.error(`清理过期 token 失败: ${err}`);
       });
     }, TOKEN_CLEANUP_INTERVAL_MS);
+  }
+
+  onModuleDestroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
   }
 
   private async cleanupExpired(): Promise<void> {

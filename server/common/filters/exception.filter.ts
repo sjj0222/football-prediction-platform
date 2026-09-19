@@ -62,12 +62,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     } else {
       // 未知异常
       httpStatus = HttpStatus.INTERNAL_SERVER_ERROR;
+      const isProd = process.env.NODE_ENV === 'production';
       errorResponse = {
         error: {
           code: ResponseCode.INTERNAL_ERROR,
           message: '服务器内部错误',
-          stack: (exception as Error).stack,
-          cause: (exception as Error).cause as string,
+          stack: isProd ? undefined : (exception as Error).stack,
+          cause: isProd ? undefined : ((exception as Error).cause as string),
           timestamp: Date.now(),
         },
       };

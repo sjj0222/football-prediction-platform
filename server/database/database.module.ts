@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, OnModuleDestroy, Inject, Logger } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
@@ -12,6 +12,9 @@ export const DRIZZLE_DATABASE = Symbol('DRIZZLE_DATABASE');
 // 重新导出类型，业务 service 统一从这里取，不再依赖平台包。
 export type { PostgresJsDatabase };
 
+// 模块级引用，用于应用关闭时清理连接池
+let pgClient: ReturnType<typeof postgres> | null = null;
+
 @Global()
 @Module({
   providers: [
@@ -22,11 +25,21 @@ export type { PostgresJsDatabase };
         if (!url) {
           throw new Error('缺少环境变量 DATABASE_URL，请配置 PostgreSQL 连接串');
         }
-        const client = postgres(url, { max: 10 });
-        return drizzle(client);
+        pgClient = postgres(url, { max: 10 });
+        return drizzle(pgClient);
       },
     },
   ],
   exports: [DRIZZLE_DATABASE],
 })
-export class DatabaseModule {}
+export class DatabaseModule implements OnModuleDestroy {
+  private readonly logger = new Logger(DatabaseModule.name);
+
+  async onModuleDestroy(): Promise<void> {
+    if (pgClient) {
+      this.logger.log('关闭数据库连接池...');
+      await pgClient.end();
+      pgClient = null;
+    }
+  }
+}

@@ -29,8 +29,8 @@ CREATE INDEX IF NOT EXISTS idx_products_match_time ON products(match_time);
 
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL,
-  product_id UUID NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id),
+  product_id UUID NOT NULL REFERENCES products(id),
   price NUMERIC NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'paid',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_product_id ON orders(product_id);
 
 CREATE TABLE IF NOT EXISTS auth_tokens (
   token VARCHAR(64) PRIMARY KEY,
-  user_id UUID NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL
 );

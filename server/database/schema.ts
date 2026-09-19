@@ -7,6 +7,7 @@ import {
   timestamp,
   uniqueIndex,
   index,
+  foreignKey,
 } from 'drizzle-orm/pg-core';
 
 // 业务表（去平台化后的独立版本）：
@@ -54,6 +55,16 @@ export const orders = pgTable('orders', {
   uniqueIndex('idx_orders_user_product').on(table.userId, table.productId),
   index('idx_orders_user_id').on(table.userId),
   index('idx_orders_product_id').on(table.productId),
+  foreignKey({
+    columns: [table.userId],
+    foreignColumns: [users.id],
+    name: 'orders_user_id_fkey',
+  }),
+  foreignKey({
+    columns: [table.productId],
+    foreignColumns: [products.id],
+    name: 'orders_product_id_fkey',
+  }),
 ]);
 
 export const authTokens = pgTable('auth_tokens', {
@@ -64,6 +75,11 @@ export const authTokens = pgTable('auth_tokens', {
 }, (table) => [
   index('idx_auth_tokens_user_id').on(table.userId),
   index('idx_auth_tokens_expires_at').on(table.expiresAt),
+  foreignKey({
+    columns: [table.userId],
+    foreignColumns: [users.id],
+    name: 'auth_tokens_user_id_fkey',
+  }).onDelete('cascade'),
 ]);
 
 // table aliases

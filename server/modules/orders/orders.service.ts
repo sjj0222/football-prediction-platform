@@ -8,7 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../../database/database.module';
-import { eq, and, desc, count, sql } from 'drizzle-orm';
+import { eq, and, desc, count } from 'drizzle-orm';
 
 import { orders, products } from '@server/database/schema';
 import type { BuyResponse, OrderItem, OrderListResponse, ProductPublic } from '@shared/api.interface';

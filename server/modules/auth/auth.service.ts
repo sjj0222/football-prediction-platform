@@ -5,6 +5,7 @@ import {
   ConflictException,
   Logger,
   OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../../database/database.module';
@@ -40,11 +41,12 @@ interface LoginAttempt {
 }
 
 @Injectable()
-export class AuthService implements OnModuleInit {
+export class AuthService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AuthService.name);
 
   private readonly captchaStore = new Map<string, CaptchaEntry>();
   private readonly loginAttempts = new Map<string, LoginAttempt>();
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     @Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase,
@@ -53,16 +55,27 @@ export class AuthService implements OnModuleInit {
 
   onModuleInit(): void {
     // 每 5 分钟清理过期的验证码和登录尝试记录
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       this.cleanExpiredCaptchas();
       this.cleanExpiredLoginAttempts();
     }, 5 * 60 * 1000);
   }
 
+  onModuleDestroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
   private cleanExpiredLoginAttempts(): void {
     const now = Date.now();
     for (const [username, attempt] of this.loginAttempts.entries()) {
-      if (attempt.lockedUntil <= now && attempt.failCount < MAX_LOGIN_FAILS) {
+      // 锁定已过期 或 未达上限且无锁定时间的记录，都可以清理
+      if (attempt.lockedUntil > 0 && attempt.lockedUntil <= now) {
+        this.loginAttempts.delete(username);
+      } else if (attempt.lockedUntil === 0) {
+        // 未锁定的失败记录，如果超过锁定窗口时间也清理掉
         this.loginAttempts.delete(username);
       }
     }
