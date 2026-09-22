@@ -26,6 +26,9 @@ async function bootstrap() {
   app.setViewEngine('html');
   app.engine('html', hbsExpressEngine);
 
+  // 托管前端构建产物（/assets/*.js、/favicon.svg 等）
+  app.useStaticAssets(join(process.cwd(), 'dist/client'));
+
   await app.listen(port, host);
   logger.log(`Server running on http://${host}:${port}`);
   logger.log(`API endpoints ready at http://${host}:${port}/api`);
