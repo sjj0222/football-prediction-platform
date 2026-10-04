@@ -1,4 +1,4 @@
-export type UserRole = 'buyer' | 'admin';
+export type UserRole = 'buyer' | 'seller' | 'admin';
 
 export type ProductStatus = 'on_sale' | 'off_sale';
 
@@ -8,8 +8,32 @@ export type OrderStatus = 'paid';
 
 export interface UserInfo {
   id: string;
-  username: string;
+  phone: string;
   role: UserRole;
+}
+
+// ===== 比赛系统（V0.2） =====
+
+export interface MatchInfo {
+  id: string;
+  league: string;
+  homeTeam: string;
+  awayTeam: string;
+  matchTime: string;
+}
+
+export interface MatchListResponse {
+  items: MatchInfo[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface CreateMatchRequest {
+  league?: string;
+  homeTeam: string;
+  awayTeam: string;
+  matchTime: string;
 }
 
 export interface ProductPublic {
@@ -66,27 +90,18 @@ export interface AdminOrderListResponse {
 }
 
 export interface RegisterRequest {
-  username: string;
+  phone: string;
   password: string;
-  captchaId: string;
-  captchaCode: string;
 }
 
 export interface LoginRequest {
-  username: string;
+  phone: string;
   password: string;
-  captchaId: string;
-  captchaCode: string;
 }
 
 export interface LoginResponse {
   user: UserInfo;
   token: string;
-}
-
-export interface CaptchaResponse {
-  captchaId: string;
-  image: string;
 }
 
 export interface BuyResponse {

@@ -5,6 +5,7 @@ import { GlobalExceptionFilter } from './common/filters/exception.filter';
 import { AuthSharedModule } from './common/auth/auth-shared.module';
 import { ViewModule } from './view/view.module';
 import { AuthModule } from './auth/auth.module';
+import { MatchesModule } from './matches/matches.module';
 import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 import { AdminModule } from './admin/admin.module';
@@ -18,6 +19,7 @@ import { DatabaseModule } from './database/database.module';
     // ====== 业务模块 ======
     AuthModule,
     UsersModule,
+    MatchesModule,
     ProductsModule,
     OrdersModule,
     AdminModule,
