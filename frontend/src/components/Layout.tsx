@@ -71,7 +71,7 @@ const Layout = () => {
             {user ? (
               <>
                 <span className="text-gray-600">
-                  {user.username}
+                  {user.phone}
                   {isAdmin && (
                     <span className="ml-2 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">
                       管理员
@@ -105,7 +105,7 @@ const Layout = () => {
         <Outlet />
       </main>
       <footer className="bg-white border-t border-gray-200 py-6 text-center text-sm text-gray-500">
-        <p>足球预测内容交易平台 V0.1 — 模拟购买，内容仅供参考</p>
+        <p>足球预测内容交易平台 V0.2 — 内容交易，仅供参考</p>
       </footer>
     </div>
   );

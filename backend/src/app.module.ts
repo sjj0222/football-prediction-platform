@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import { OrdersModule } from './orders/orders.module';
 import { AdminModule } from './admin/admin.module';
+import { UsersModule } from './users/users.module';
 import { DatabaseModule } from './database/database.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { DatabaseModule } from './database/database.module';
     AuthSharedModule,
     // ====== 业务模块 ======
     AuthModule,
+    UsersModule,
     ProductsModule,
     OrdersModule,
     AdminModule,

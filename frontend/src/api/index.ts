@@ -14,7 +14,6 @@ import type {
   ProductListResponse,
   OrderListResponse,
   LoginResponse,
-  CaptchaResponse,
   RegisterRequest,
   LoginRequest,
   BuyResponse,
@@ -139,11 +138,6 @@ axiosForBackend.interceptors.response.use(
 
 // ========== 认证 ==========
 
-export async function getCaptcha(): Promise<CaptchaResponse> {
-  const response = await axiosForBackend.get('/api/v1/auth/captcha');
-  return response.data;
-}
-
 export async function register(data: RegisterRequest): Promise<{ user: UserInfo }> {
   const response = await axiosForBackend.post('/api/v1/auth/register', data);
   return response.data;
@@ -158,16 +152,12 @@ export async function login(data: LoginRequest): Promise<LoginResponse> {
 }
 
 export async function logout(): Promise<void> {
-  try {
-    await axiosForBackend.post('/api/v1/auth/logout', {});
-  } catch (e) {
-    logger.error('登出请求失败', e);
-  }
+  // JWT 无状态，登出仅清理本地登录态
   clearAuthStorage();
 }
 
 export async function getMe(): Promise<{ user: UserInfo }> {
-  const response = await axiosForBackend.get('/api/v1/auth/me');
+  const response = await axiosForBackend.get('/api/v1/users/me');
   return response.data;
 }
 
