@@ -6,429 +6,548 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../database/database.module';
-import { eq, and, count, desc, ilike, or, inArray } from 'drizzle-orm';
-import { products, orders, users } from '@server/database/schema';
+import { eq, and, count, desc, ilike, or, isNull, sql, inArray } from 'drizzle-orm';
+import { products, orders, users, matches, walletTransactions, adminLogs } from '@server/database/schema';
+import { hashPassword } from '../common/auth/password';
+import { WalletService } from '../wallet/wallet.service';
 import type {
-  ProductPublic,
   ProductDetail,
   ProductListResponse,
   ProductStatus,
-  ProductResult,
-  OrderItem,
-  AdminOrderListResponse,
 } from '@shared/api.interface';
-import type { AdminCreateProductDto } from './dto/admin-create-product.dto';
-import type { AdminUpdateProductDto } from './dto/admin-update-product.dto';
-import type { AdminSetResultDto } from './dto/admin-set-result.dto';
+
+export interface AdminUserItem {
+  id: string;
+  phone: string;
+  role: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface AdminProductItem {
+  id: string;
+  sellerId: string;
+  matchId: string;
+  title: string;
+  description: string;
+  price: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  league: string;
+  homeTeam: string;
+  awayTeam: string;
+  matchTime: string;
+  sellerPhone: string;
+}
+
+export interface AdminOrderItem {
+  id: string;
+  buyerId: string;
+  productId: string;
+  price: string;
+  status: string;
+  createdAt: string;
+  productTitle: string;
+  buyerPhone: string;
+}
+
+export interface AdminLogItem {
+  id: string;
+  adminId: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  reason: string;
+  createdAt: string;
+  adminPhone: string;
+}
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
-  constructor(@Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase) {}
+  constructor(
+    @Inject(DRIZZLE_DATABASE) private readonly db: PostgresJsDatabase,
+    private readonly walletService: WalletService,
+  ) {}
+
+  // ========== 工具：操作日志 ==========
+
+  private async logAction(
+    adminId: string,
+    action: string,
+    targetType: string,
+    targetId: string,
+    reason?: string,
+  ): Promise<void> {
+    await this.db.insert(adminLogs).values({
+      adminId,
+      action,
+      targetType,
+      targetId,
+      reason: reason ?? '',
+    });
+  }
+
+  // ========== 用户管理 ==========
+
+  async getUsers(
+    q: string | undefined,
+    page: number,
+    pageSize: number,
+  ): Promise<{ items: AdminUserItem[]; total: number; page: number; pageSize: number }> {
+    const conditions = q
+      ? [or(ilike(users.phone, `%${q}%`), ilike(users.role, `%${q}%`))]
+      : [];
+    const whereClause = conditions.length ? and(...conditions) : undefined;
+
+    const [countResult, rows] = await Promise.all([
+      this.db.select({ count: count() }).from(users).where(whereClause),
+      this.db
+        .select()
+        .from(users)
+        .where(whereClause)
+        .orderBy(desc(users.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+    ]);
+
+    return {
+      items: rows.map((u) => ({
+        id: u.id,
+        phone: u.phone,
+        role: u.role,
+        status: u.status,
+        createdAt: u.createdAt.toISOString(),
+      })),
+      total: Number(countResult[0]?.count ?? 0),
+      page,
+      pageSize,
+    };
+  }
+
+  async setUserStatus(
+    id: string,
+    status: 'frozen' | 'active',
+    adminId: string,
+    reason?: string,
+  ): Promise<AdminUserItem> {
+    const rows = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException('用户不存在');
+    }
+    const updated = await this.db
+      .update(users)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    await this.logAction(
+      adminId,
+      status === 'frozen' ? 'freeze_user' : 'unfreeze_user',
+      'user',
+      id,
+      reason,
+    );
+    const u = updated[0];
+    return {
+      id: u.id,
+      phone: u.phone,
+      role: u.role,
+      status: u.status,
+      createdAt: u.createdAt.toISOString(),
+    };
+  }
+
+  async resetPassword(
+    id: string,
+    newPassword: string,
+    adminId: string,
+  ): Promise<{ ok: true }> {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('新密码长度至少 6 位');
+    }
+    const rows = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException('用户不存在');
+    }
+    const passwordHash = hashPassword(newPassword);
+    await this.db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, id));
+    await this.logAction(adminId, 'reset_password', 'user', id);
+    return { ok: true };
+  }
+
+  /** 指定卖家 / 取消卖家（禁止发布权限） */
+  async setSeller(
+    id: string,
+    role: 'seller' | 'buyer',
+    adminId: string,
+  ): Promise<AdminUserItem> {
+    const rows = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException('用户不存在');
+    }
+    if (rows[0].role === 'admin') {
+      throw new BadRequestException('不能修改管理员角色');
+    }
+    const updated = await this.db
+      .update(users)
+      .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    await this.logAction(
+      adminId,
+      role === 'seller' ? 'assign_seller' : 'revoke_seller',
+      'user',
+      id,
+    );
+    const u = updated[0];
+    return {
+      id: u.id,
+      phone: u.phone,
+      role: u.role,
+      status: u.status,
+      createdAt: u.createdAt.toISOString(),
+    };
+  }
 
   // ========== 商品管理 ==========
 
-  async getProductList(
+  async getProducts(
     q: string | undefined,
     status: ProductStatus | undefined,
     page: number,
     pageSize: number,
-  ): Promise<ProductListResponse> {
+  ): Promise<{ items: AdminProductItem[]; total: number; page: number; pageSize: number }> {
     const keywords = q
       ? q.split(/\s+/).filter((k: string) => k.length > 0)
       : [];
-
-    const conditions = [];
+    const conditions: ReturnType<typeof eq>[] = [];
     if (status) {
       conditions.push(eq(products.status, status));
     }
-
     const searchConditions = keywords.map((keyword: string) =>
       or(
-        ilike(products.anchorName, `%${keyword}%`),
-        ilike(products.homeTeam, `%${keyword}%`),
-        ilike(products.awayTeam, `%${keyword}%`),
+        ilike(products.title, `%${keyword}%`),
+        ilike(matches.homeTeam, `%${keyword}%`),
+        ilike(matches.awayTeam, `%${keyword}%`),
+        ilike(matches.league, `%${keyword}%`),
       ),
     );
-
     const whereClause = and(...conditions, ...searchConditions);
 
-    try {
-      const [countResult, items] = await Promise.all([
-        this.db
-          .select({ count: count() })
-          .from(products)
-          .where(whereClause),
-        this.db
-          .select({
-            id: products.id,
-            anchorName: products.anchorName,
-            matchTime: products.matchTime,
-            homeTeam: products.homeTeam,
-            awayTeam: products.awayTeam,
-            price: products.price,
-            status: products.status,
-            result: products.result,
-            createdAt: products.createdAt,
-            updatedAt: products.updatedAt,
-          })
-          .from(products)
-          .where(whereClause)
-          .orderBy(desc(products.matchTime))
-          .limit(pageSize)
-          .offset((page - 1) * pageSize),
-      ]);
-
-      const total = Number(countResult[0]?.count ?? 0);
-
-      return {
-        items: items.map((item) => this.mapProductPublic(item)),
-        total,
-        page,
-        pageSize,
-      };
-    } catch (error) {
-      this.logger.error(
-        `管理员获取商品列表失败: q=${q}, status=${status}, page=${page}, pageSize=${pageSize}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
-    }
-  }
-
-  async getProductDetail(id: string): Promise<ProductDetail> {
-    try {
-      const rows = await this.db
-        .select()
+    const [countResult, rows] = await Promise.all([
+      this.db
+        .select({ count: count() })
         .from(products)
-        .where(eq(products.id, id))
-        .limit(1);
-
-      if (rows.length === 0) {
-        throw new NotFoundException('商品不存在');
-      }
-
-      const product = rows[0];
-      const base = this.mapProductPublic(product);
-
-      return {
-        ...base,
-        hasPurchased: false,
-        content: product.content,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(
-        `管理员获取商品详情失败: id=${id}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
-    }
-  }
-
-  async createProduct(dto: AdminCreateProductDto, userId: string): Promise<ProductDetail> {
-    try {
-      const result = await this.db
-        .insert(products)
-        .values({
-          anchorName: dto.anchorName,
-          matchTime: new Date(dto.matchTime),
-          homeTeam: dto.homeTeam,
-          awayTeam: dto.awayTeam,
-          content: dto.content,
-          price: String(dto.price),
-          status: 'off_sale',
-          result: 'pending',
+        .innerJoin(matches, eq(products.matchId, matches.id))
+        .where(whereClause),
+      this.db
+        .select({
+          id: products.id,
+          sellerId: products.sellerId,
+          matchId: products.matchId,
+          title: products.title,
+          description: products.description,
+          price: products.price,
+          status: products.status,
+          createdAt: products.createdAt,
+          updatedAt: products.updatedAt,
+          deletedAt: products.deletedAt,
+          league: matches.league,
+          homeTeam: matches.homeTeam,
+          awayTeam: matches.awayTeam,
+          matchTime: matches.matchTime,
         })
-        .returning();
+        .from(products)
+        .innerJoin(matches, eq(products.matchId, matches.id))
+        .where(whereClause)
+        .orderBy(desc(products.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+    ]);
 
-      const product = result[0];
-      this.logger.log(`管理员创建商品成功: id=${product.id}, anchorName=${dto.anchorName}`);
+    const sellerIds = [...new Set(rows.map((r) => r.sellerId))];
+    const sellerRows =
+      sellerIds.length > 0
+        ? await this.db
+            .select({ id: users.id, phone: users.phone })
+            .from(users)
+            .where(inArray(users.id, sellerIds))
+        : [];
+    const sellerMap = new Map(sellerRows.map((s) => [s.id, s.phone]));
 
-      const base = this.mapProductPublic(product);
-      return {
-        ...base,
-        hasPurchased: false,
-        content: product.content,
-      };
-    } catch (error) {
-      this.logger.error(
-        `管理员创建商品失败: anchorName=${dto.anchorName}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
-    }
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        sellerId: r.sellerId,
+        matchId: r.matchId,
+        title: r.title,
+        description: r.description,
+        price: String(r.price),
+        status: r.status,
+        createdAt: r.createdAt.toISOString(),
+        updatedAt: r.updatedAt.toISOString(),
+        league: r.league,
+        homeTeam: r.homeTeam,
+        awayTeam: r.awayTeam,
+        matchTime: r.matchTime.toISOString(),
+        sellerPhone: sellerMap.get(r.sellerId) ?? '',
+      })),
+      total: Number(countResult[0]?.count ?? 0),
+      page,
+      pageSize,
+    };
   }
 
-  async updateProduct(
+  /** 审核通过：pending_review → online */
+  async approveProduct(id: string, adminId: string): Promise<ProductDetail> {
+    return this.transitionProductStatus(id, 'online', 'approve_product', adminId, '审核通过');
+  }
+
+  /** 审核拒绝：pending_review → offline */
+  async rejectProduct(id: string, adminId: string, reason?: string): Promise<ProductDetail> {
+    return this.transitionProductStatus(id, 'offline', 'reject_product', adminId, reason ?? '审核拒绝');
+  }
+
+  /** 下架：online → offline */
+  async offlineProduct(id: string, adminId: string, reason?: string): Promise<ProductDetail> {
+    return this.transitionProductStatus(id, 'offline', 'offline_product', adminId, reason);
+  }
+
+  private async transitionProductStatus(
     id: string,
-    dto: AdminUpdateProductDto,
-    userId: string,
+    targetStatus: ProductStatus,
+    action: string,
+    adminId: string,
+    reason?: string,
   ): Promise<ProductDetail> {
-    const patch: Partial<typeof products.$inferInsert> = {};
-
-    if (dto.anchorName !== undefined) {
-      patch.anchorName = dto.anchorName;
-    }
-    if (dto.matchTime !== undefined) {
-      patch.matchTime = new Date(dto.matchTime);
-    }
-    if (dto.homeTeam !== undefined) {
-      patch.homeTeam = dto.homeTeam;
-    }
-    if (dto.awayTeam !== undefined) {
-      patch.awayTeam = dto.awayTeam;
-    }
-    if (dto.content !== undefined) {
-      patch.content = dto.content;
-    }
-
-    if (Object.keys(patch).length === 0) {
-      throw new BadRequestException('未提供可更新字段');
-    }
-
-    patch.updatedAt = new Date();
-
-    try {
-      const updated = await this.db
-        .update(products)
-        .set(patch)
-        .where(eq(products.id, id))
-        .returning();
-
-      if (updated.length === 0) {
-        throw new NotFoundException('商品不存在');
-      }
-
-      this.logger.log(`管理员更新商品成功: id=${id}`);
-      const product = updated[0];
-      const base = this.mapProductPublic(product);
-      return {
-        ...base,
-        hasPurchased: false,
-        content: product.content,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-      this.logger.error(
-        `管理员更新商品失败: id=${id}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
-    }
-  }
-
-  async setProductOnSale(id: string, userId: string): Promise<ProductDetail> {
-    return this.updateProductStatus(id, 'on_sale', userId);
-  }
-
-  async setProductOffSale(id: string, userId: string): Promise<ProductDetail> {
-    return this.updateProductStatus(id, 'off_sale', userId);
-  }
-
-  private async updateProductStatus(
-    id: string,
-    status: ProductStatus,
-    userId: string,
-  ): Promise<ProductDetail> {
-    try {
-      const updated = await this.db
-        .update(products)
-        .set({
-          status,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, id))
-        .returning();
-
-      if (updated.length === 0) {
-        throw new NotFoundException('商品不存在');
-      }
-
-      this.logger.log(`管理员${status === 'on_sale' ? '上架' : '下架'}商品: id=${id}`);
-      const product = updated[0];
-      const base = this.mapProductPublic(product);
-      return {
-        ...base,
-        hasPurchased: false,
-        content: product.content,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      this.logger.error(
-        `管理员${status === 'on_sale' ? '上架' : '下架'}商品失败: id=${id}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
-    }
-  }
-
-  async setProductResult(
-    id: string,
-    dto: AdminSetResultDto,
-    userId: string,
-  ): Promise<ProductDetail> {
-    // 先查询商品状态，下架商品不允许标记结果
-    const existing = await this.db
-      .select({ status: products.status })
-      .from(products)
-      .where(eq(products.id, id))
-      .limit(1);
-
-    if (existing.length === 0) {
+    const rows = await this.db.select().from(products).where(eq(products.id, id)).limit(1);
+    if (rows.length === 0) {
       throw new NotFoundException('商品不存在');
     }
-
-    if (existing[0].status === 'off_sale') {
-      throw new BadRequestException('下架商品不允许标记结果');
+    const product = rows[0];
+    if (action === 'approve_product' && product.status !== 'pending_review') {
+      throw new BadRequestException('仅待审核商品可通过审核');
     }
-
-    try {
-      const updated = await this.db
-        .update(products)
-        .set({
-          result: dto.result,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, id))
-        .returning();
-
-      if (updated.length === 0) {
-        throw new NotFoundException('商品不存在');
-      }
-
-      this.logger.log(`管理员标记商品结果: id=${id}, result=${dto.result}`);
-      const product = updated[0];
-      const base = this.mapProductPublic(product);
-      return {
-        ...base,
-        hasPurchased: false,
-        content: product.content,
-      };
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof BadRequestException) {
-        throw error;
-      }
-      this.logger.error(
-        `管理员标记商品结果失败: id=${id}, result=${dto.result}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
+    if ((action === 'reject_product' || action === 'offline_product') && product.status === 'deleted') {
+      throw new BadRequestException('已删除商品不可操作');
     }
+    const updated = await this.db
+      .update(products)
+      .set({ status: targetStatus, updatedAt: new Date() })
+      .where(eq(products.id, id))
+      .returning();
+    await this.logAction(adminId, action, 'product', id, reason);
+    return this.mapProductDetail(updated[0]);
   }
 
-  // ========== 订单管理 ==========
-
-  async getOrderList(page: number, pageSize: number): Promise<AdminOrderListResponse> {
-    try {
-      const [countResult, orderRows] = await Promise.all([
-        this.db
-          .select({ count: count() })
-          .from(orders),
-        this.db
-          .select()
-          .from(orders)
-          .orderBy(desc(orders.createdAt))
-          .limit(pageSize)
-          .offset((page - 1) * pageSize),
-      ]);
-
-      const total = Number(countResult[0]?.count ?? 0);
-
-      if (orderRows.length === 0) {
-        return { items: [], total, page, pageSize };
-      }
-
-      // 批量查询关联的商品和用户
-      const productIds = [...new Set(orderRows.map((o) => o.productId))];
-      const userIds = [...new Set(orderRows.map((o) => o.userId))];
-
-      const [productRows, userRows] = await Promise.all([
-        this.db
-          .select({
-            id: products.id,
-            anchorName: products.anchorName,
-            matchTime: products.matchTime,
-            homeTeam: products.homeTeam,
-            awayTeam: products.awayTeam,
-            price: products.price,
-            status: products.status,
-            result: products.result,
-            createdAt: products.createdAt,
-            updatedAt: products.updatedAt,
-          })
-          .from(products)
-          .where(inArray(products.id, productIds)),
-        this.db
-          .select({
-            id: users.id,
-            username: users.username,
-          })
-          .from(users)
-          .where(inArray(users.id, userIds)),
-      ]);
-
-      // 用 Map 分组
-      const productMap = new Map<string, ProductPublic>();
-      for (const p of productRows) {
-        productMap.set(p.id, this.mapProductPublic(p));
-      }
-
-      const userMap = new Map<string, { id: string; username: string }>();
-      for (const u of userRows) {
-        userMap.set(u.id, u);
-      }
-
-      const items = orderRows.map((order) => {
-        const product = productMap.get(order.productId);
-        const user = userMap.get(order.userId);
-        return {
-          id: order.id,
-          userId: order.userId,
-          productId: order.productId,
-          price: String(order.price),
-          status: order.status as OrderItem['status'],
-          createdAt: order.createdAt.toISOString(),
-          product,
-          username: user?.username,
-        };
-      });
-
-      return { items, total, page, pageSize };
-    } catch (error) {
-      this.logger.error(
-        `管理员获取订单列表失败: page=${page}, pageSize=${pageSize}, error=${JSON.stringify(error)}`,
-      );
-      throw error;
+  /**
+   * 商品删除流程：
+   * 管理员确认 → 商品删除（软删） → 查询购买用户 → 全部退款 → 记录日志
+   */
+  async deleteProduct(id: string, adminId: string, reason?: string): Promise<{ ok: true }> {
+    const rows = await this.db.select().from(products).where(eq(products.id, id)).limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException('商品不存在');
     }
+    const product = rows[0];
+    if (product.deletedAt) {
+      throw new BadRequestException('商品已删除');
+    }
+
+    await this.db.transaction(async (tx) => {
+      // 软删除商品
+      await tx
+        .update(products)
+        .set({ status: 'deleted', deletedAt: new Date(), updatedAt: new Date() })
+        .where(eq(products.id, id));
+
+      // 查询该商品所有已支付订单
+      const paidOrders = await tx
+        .select()
+        .from(orders)
+        .where(and(eq(orders.productId, id), eq(orders.status, 'paid')));
+
+      // 全部退款（幂等：钱包记 refund 正数，订单置 refunded）
+      for (const order of paidOrders) {
+        await tx.insert(walletTransactions).values({
+          userId: order.buyerId,
+          amount: String(Number(order.price)),
+          type: 'refund',
+          remark: `商品删除退款：${product.title}`,
+        });
+        await tx
+          .update(orders)
+          .set({ status: 'refunded', updatedAt: new Date() })
+          .where(eq(orders.id, order.id));
+      }
+    });
+
+    await this.logAction(adminId, 'delete_product', 'product', id, reason);
+    this.logger.log(`管理员删除商品并退款: id=${id}, reason=${reason ?? ''}`);
+    return { ok: true };
+  }
+
+  // ========== 订单 / 退款管理 ==========
+
+  async getOrders(
+    status: string | undefined,
+    page: number,
+    pageSize: number,
+  ): Promise<{ items: AdminOrderItem[]; total: number; page: number; pageSize: number }> {
+    const conditions = status
+      ? [eq(orders.status, status as 'paid' | 'refunded')]
+      : [];
+    const whereClause = conditions.length ? and(...conditions) : undefined;
+
+    const [countResult, rows] = await Promise.all([
+      this.db.select({ count: count() }).from(orders).where(whereClause),
+      this.db
+        .select({
+          id: orders.id,
+          buyerId: orders.buyerId,
+          productId: orders.productId,
+          price: orders.price,
+          status: orders.status,
+          createdAt: orders.createdAt,
+          productTitle: products.title,
+          buyerPhone: users.phone,
+        })
+        .from(orders)
+        .innerJoin(products, eq(orders.productId, products.id))
+        .innerJoin(users, eq(orders.buyerId, users.id))
+        .where(whereClause)
+        .orderBy(desc(orders.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+    ]);
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        buyerId: r.buyerId,
+        productId: r.productId,
+        price: String(r.price),
+        status: r.status,
+        createdAt: r.createdAt.toISOString(),
+        productTitle: r.productTitle,
+        buyerPhone: r.buyerPhone,
+      })),
+      total: Number(countResult[0]?.count ?? 0),
+      page,
+      pageSize,
+    };
+  }
+
+  /** 单笔退款：paid → refunded + 钱包退回（幂等） */
+  async refundOrder(orderId: string, adminId: string, reason?: string): Promise<{ ok: true }> {
+    const rows = await this.db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+    if (rows.length === 0) {
+      throw new NotFoundException('订单不存在');
+    }
+    const order = rows[0];
+    if (order.status === 'refunded') {
+      throw new BadRequestException('订单已退款');
+    }
+    const productRows = await this.db
+      .select({ title: products.title })
+      .from(products)
+      .where(eq(products.id, order.productId))
+      .limit(1);
+    const productTitle = productRows[0]?.title ?? '';
+
+    await this.db.transaction(async (tx) => {
+      await tx.insert(walletTransactions).values({
+        userId: order.buyerId,
+        amount: String(Number(order.price)),
+        type: 'refund',
+        remark: `订单退款：${productTitle}`,
+      });
+      await tx
+        .update(orders)
+        .set({ status: 'refunded', updatedAt: new Date() })
+        .where(eq(orders.id, orderId));
+    });
+
+    await this.logAction(adminId, 'refund_order', 'order', orderId, reason);
+    return { ok: true };
+  }
+
+  // ========== 日志 ==========
+
+  async getLogs(
+    page: number,
+    pageSize: number,
+  ): Promise<{ items: AdminLogItem[]; total: number; page: number; pageSize: number }> {
+    const [countResult, rows] = await Promise.all([
+      this.db.select({ count: count() }).from(adminLogs),
+      this.db
+        .select({
+          id: adminLogs.id,
+          adminId: adminLogs.adminId,
+          action: adminLogs.action,
+          targetType: adminLogs.targetType,
+          targetId: adminLogs.targetId,
+          reason: adminLogs.reason,
+          createdAt: adminLogs.createdAt,
+          adminPhone: users.phone,
+        })
+        .from(adminLogs)
+        .innerJoin(users, eq(adminLogs.adminId, users.id))
+        .orderBy(desc(adminLogs.createdAt))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+    ]);
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        adminId: r.adminId,
+        action: r.action,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        reason: r.reason,
+        createdAt: r.createdAt.toISOString(),
+        adminPhone: r.adminPhone,
+      })),
+      total: Number(countResult[0]?.count ?? 0),
+      page,
+      pageSize,
+    };
   }
 
   // ========== 工具方法 ==========
 
-  private mapProductPublic(row: {
+  private mapProductDetail(row: {
     id: string;
-    anchorName: string;
-    matchTime: Date;
-    homeTeam: string;
-    awayTeam: string;
+    sellerId: string;
+    matchId: string;
+    title: string;
+    description: string;
+    content: string;
     price: string;
     status: string;
-    result: string;
     createdAt: Date;
     updatedAt: Date;
-  }): ProductPublic {
+    deletedAt: Date | null;
+  }): ProductDetail {
     return {
       id: row.id,
-      anchorName: row.anchorName,
-      matchTime: row.matchTime.toISOString(),
-      homeTeam: row.homeTeam,
-      awayTeam: row.awayTeam,
+      sellerId: row.sellerId,
+      matchId: row.matchId,
+      title: row.title,
+      description: row.description,
+      content: row.content,
       price: String(row.price),
       status: row.status as ProductStatus,
-      result: row.result as ProductResult,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+      hasPurchased: false,
+      additions: [],
     };
   }
 }

@@ -78,6 +78,18 @@ const Layout = () => {
                   卖家中心
                 </NavLink>
               )}
+              {isAdmin && (
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) =>
+                    isActive
+                      ? 'text-primary font-medium'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }
+                >
+                  管理后台
+                </NavLink>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">

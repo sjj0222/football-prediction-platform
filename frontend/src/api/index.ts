@@ -235,6 +235,91 @@ export async function sellerGetSales(): Promise<unknown[]> {
   return response.data;
 }
 
+// ========== 管理后台 ==========
+
+export async function adminGetUsers(params?: {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+  const response = await axiosForBackend.get('/api/v1/admin/users', { params });
+  return response.data;
+}
+
+export async function adminSetUserRole(userId: string, role: 'seller' | 'buyer'): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/users/${userId}/set-role`, { role });
+  return response.data;
+}
+
+export async function adminFreezeUser(userId: string, reason?: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/users/${userId}/freeze`, { reason });
+  return response.data;
+}
+
+export async function adminUnfreezeUser(userId: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/users/${userId}/unfreeze`);
+  return response.data;
+}
+
+export async function adminResetPassword(userId: string, newPassword: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/users/${userId}/reset-password`, {
+    newPassword,
+  });
+  return response.data;
+}
+
+export async function adminGetProducts(params?: {
+  q?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+  const response = await axiosForBackend.get('/api/v1/admin/products', { params });
+  return response.data;
+}
+
+export async function adminApproveProduct(productId: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/products/${productId}/approve`);
+  return response.data;
+}
+
+export async function adminRejectProduct(productId: string, reason?: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/products/${productId}/reject`, { reason });
+  return response.data;
+}
+
+export async function adminOfflineProduct(productId: string, reason?: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/products/${productId}/offline`, { reason });
+  return response.data;
+}
+
+export async function adminDeleteProduct(productId: string, reason?: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/products/${productId}/delete`, { reason });
+  return response.data;
+}
+
+export async function adminGetOrders(params?: {
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+  const response = await axiosForBackend.get('/api/v1/admin/orders', { params });
+  return response.data;
+}
+
+export async function adminRefundOrder(orderId: string, reason?: string): Promise<unknown> {
+  const response = await axiosForBackend.post(`/api/v1/admin/orders/${orderId}/refund`, { reason });
+  return response.data;
+}
+
+export async function adminGetLogs(params?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+  const response = await axiosForBackend.get('/api/v1/admin/logs', { params });
+  return response.data;
+}
+
 // ========== 订单 ==========
 
 export async function buyProduct(productId: string): Promise<BuyResponse> {
