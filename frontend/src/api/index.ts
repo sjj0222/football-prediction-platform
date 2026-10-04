@@ -244,3 +244,18 @@ export async function getMyOrders(params?: {
   const response = await axiosForBackend.get('/api/v1/orders/me', { params });
   return response.data;
 }
+
+// ========== 钱包 ==========
+
+export async function getWalletBalance(): Promise<{ balance: string }> {
+  const response = await axiosForBackend.get('/api/v1/wallet/balance');
+  return response.data;
+}
+
+export async function getWalletTransactions(params?: {
+  page?: number;
+  pageSize?: number;
+}): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+  const response = await axiosForBackend.get('/api/v1/wallet/transactions', { params });
+  return response.data;
+}

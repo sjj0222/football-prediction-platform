@@ -7,6 +7,7 @@ import NotFound from '../pages/NotFound/NotFound';
 import HomePage from '../pages/HomePage/HomePage';
 import ProductDetailPage from '../pages/ProductDetailPage/ProductDetailPage';
 import MyOrdersPage from '../pages/MyOrdersPage/MyOrdersPage';
+import WalletPage from '../pages/WalletPage/WalletPage';
 import LoginPage from '../pages/LoginPage/LoginPage';
 import RegisterPage from '../pages/RegisterPage/RegisterPage';
 
@@ -18,6 +19,7 @@ const RoutesComponent = () => {
         <Route index element={<HomePage />} />
         <Route path="product/:id" element={<ProductDetailPage />} />
         <Route path="my-orders" element={<MyOrdersPage />} />
+        <Route path="wallet" element={<WalletPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
       </Route>

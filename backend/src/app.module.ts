@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { MatchesModule } from './matches/matches.module';
 import { ProductsModule } from './products/products.module';
 import { SellerModule } from './seller/seller.module';
+import { WalletModule } from './wallet/wallet.module';
 import { OrdersModule } from './orders/orders.module';
 import { AdminModule } from './admin/admin.module';
 import { UsersModule } from './users/users.module';
@@ -23,6 +24,7 @@ import { DatabaseModule } from './database/database.module';
     MatchesModule,
     ProductsModule,
     SellerModule,
+    WalletModule,
     OrdersModule,
     AdminModule,
     // ViewModule 是兜底路由模块，必须放最后

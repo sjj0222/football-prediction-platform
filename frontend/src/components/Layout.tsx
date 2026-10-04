@@ -51,6 +51,18 @@ const Layout = () => {
                   我的购买
                 </NavLink>
               )}
+              {user && (
+                <NavLink
+                  to="/wallet"
+                  className={({ isActive }) =>
+                    isActive
+                      ? 'text-primary font-medium'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }
+                >
+                  我的钱包
+                </NavLink>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
