@@ -12,9 +12,9 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@server/*": ["server/*"],
+      "@server/*": ["backend/src/*"],
       "@shared/*": ["shared/*"]
     }
   },
-  "include": ["server/**/*", "shared/**/*"]
+  "include": ["backend/**/*", "shared/**/*"]
 }

@@ -18,10 +18,10 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": "./",
     "paths": {
-      "@client/*": ["client/*"],
+      "@client/*": ["frontend/*"],
       "@shared/*": ["shared/*"],
-      "@/*": ["./client/src/*"]
+      "@/*": ["./frontend/src/*"]
     }
   },
-  "include": ["client/**/*", "shared/**/*"]
+  "include": ["frontend/**/*", "shared/**/*"]
 }

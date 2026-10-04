@@ -3,12 +3,12 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
-  root: path.resolve(__dirname, 'client'),
+  root: path.resolve(__dirname, 'frontend'),
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'client/src'),
-      '@client': path.resolve(__dirname, 'client'),
+      '@': path.resolve(__dirname, 'frontend/src'),
+      '@client': path.resolve(__dirname, 'frontend'),
       '@shared': path.resolve(__dirname, 'shared'),
     },
   },
@@ -22,7 +22,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(__dirname, 'dist/client'),
+    outDir: path.resolve(__dirname, 'dist/frontend'),
     emptyOutDir: true,
   },
 });

@@ -1,55 +1,112 @@
--- 初始化数据库表（在你自己的 PostgreSQL 上执行一次）
-CREATE TABLE IF NOT EXISTS users (
+-- 卖料平台 V0.2 数据库初始化脚本（在 PostgreSQL 上执行一次）
+-- 结构变更说明：users 由 username 改为 phone；删除 auth_tokens（改用 JWT）；
+-- 新增 matches / product_additions / wallet_transactions / favorites / admin_logs。
+
+BEGIN;
+
+-- 清空旧表（V0.1 结构，按依赖顺序）
+DROP TABLE IF EXISTS auth_tokens CASCADE;
+DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- users（buyer / seller / admin）
+CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  username VARCHAR(50) NOT NULL UNIQUE,
+  phone VARCHAR(20) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   role VARCHAR(20) NOT NULL DEFAULT 'buyer',
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS products (
+-- matches（比赛独立保存，多个商品可绑定同一比赛）
+CREATE TABLE matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  anchor_name VARCHAR(100) NOT NULL,
-  match_time TIMESTAMPTZ NOT NULL,
+  league VARCHAR(100) NOT NULL DEFAULT '',
   home_team VARCHAR(100) NOT NULL,
   away_team VARCHAR(100) NOT NULL,
-  content TEXT NOT NULL,
-  price NUMERIC NOT NULL DEFAULT 0,
-  status VARCHAR(20) NOT NULL DEFAULT 'off_sale',
-  result VARCHAR(20) NOT NULL DEFAULT 'pending',
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  match_time TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_products_anchor_name ON products(anchor_name);
-CREATE INDEX IF NOT EXISTS idx_products_home_team ON products(home_team);
-CREATE INDEX IF NOT EXISTS idx_products_away_team ON products(away_team);
-CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
-CREATE INDEX IF NOT EXISTS idx_products_match_time ON products(match_time);
+CREATE INDEX idx_matches_home_team ON matches(home_team);
+CREATE INDEX idx_matches_away_team ON matches(away_team);
+CREATE INDEX idx_matches_match_time ON matches(match_time);
 
-CREATE TABLE IF NOT EXISTS orders (
+-- products（draft → pending_review → online → offline → deleted）
+CREATE TABLE products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id),
+  seller_id UUID NOT NULL REFERENCES users(id),
+  match_id UUID NOT NULL REFERENCES matches(id),
+  title VARCHAR(200) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  content TEXT NOT NULL DEFAULT '',
+  price NUMERIC NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMPTZ
+);
+CREATE INDEX idx_products_seller_id ON products(seller_id);
+CREATE INDEX idx_products_match_id ON products(match_id);
+CREATE INDEX idx_products_status ON products(status);
+
+-- product_additions（发布后补充内容，原内容禁止修改）
+CREATE TABLE product_additions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_product_additions_product_id ON product_additions(product_id);
+
+-- orders（paid / refunded；禁止删除订单）
+CREATE TABLE orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  buyer_id UUID NOT NULL REFERENCES users(id),
   product_id UUID NOT NULL REFERENCES products(id),
   price NUMERIC NOT NULL DEFAULT 0,
   status VARCHAR(20) NOT NULL DEFAULT 'paid',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (user_id, product_id)
+  CONSTRAINT uq_orders_buyer_product UNIQUE (buyer_id, product_id)
 );
-CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_product_id ON orders(product_id);
+CREATE INDEX idx_orders_buyer_id ON orders(buyer_id);
+CREATE INDEX idx_orders_product_id ON orders(product_id);
 
-CREATE TABLE IF NOT EXISTS auth_tokens (
-  token VARCHAR(64) PRIMARY KEY,
+-- wallet_transactions（账本模式：admin_add / refund 增加，purchase 减少）
+CREATE TABLE wallet_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  expires_at TIMESTAMPTZ NOT NULL
+  amount NUMERIC NOT NULL DEFAULT 0,
+  type VARCHAR(20) NOT NULL,
+  remark VARCHAR(255) NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires_at ON auth_tokens(expires_at);
+CREATE INDEX idx_wallet_transactions_user_id ON wallet_transactions(user_id);
 
--- 可选：初始管理员账号（密码 admin123 的 PBKDF2 哈希，与代码一致）
--- 若不需要可注释掉。注册页只能注册买家，管理员需手动插入。
--- INSERT INTO users (username, password_hash, role) VALUES
--- ('admin', 'pbkdf2_sha512$10000$<salt>$<hash>', 'admin');
+-- favorites（买家收藏）
+CREATE TABLE favorites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_favorites_user_product UNIQUE (user_id, product_id)
+);
+CREATE INDEX idx_favorites_user_id ON favorites(user_id);
+
+-- admin_logs（所有管理员操作必须记录）
+CREATE TABLE admin_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID NOT NULL REFERENCES users(id),
+  action VARCHAR(50) NOT NULL,
+  target_type VARCHAR(50) NOT NULL DEFAULT '',
+  target_id VARCHAR(50) NOT NULL DEFAULT '',
+  reason VARCHAR(500) NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_admin_logs_admin_id ON admin_logs(admin_id);
+CREATE INDEX idx_admin_logs_target_type ON admin_logs(target_type);
+CREATE INDEX idx_admin_logs_created_at ON admin_logs(created_at);
+
+COMMIT;
