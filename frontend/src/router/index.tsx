@@ -8,6 +8,7 @@ import HomePage from '../pages/HomePage/HomePage';
 import ProductDetailPage from '../pages/ProductDetailPage/ProductDetailPage';
 import MyOrdersPage from '../pages/MyOrdersPage/MyOrdersPage';
 import WalletPage from '../pages/WalletPage/WalletPage';
+import SellerCenterPage from '../pages/SellerCenterPage/SellerCenterPage';
 import LoginPage from '../pages/LoginPage/LoginPage';
 import RegisterPage from '../pages/RegisterPage/RegisterPage';
 
@@ -20,6 +21,7 @@ const RoutesComponent = () => {
         <Route path="product/:id" element={<ProductDetailPage />} />
         <Route path="my-orders" element={<MyOrdersPage />} />
         <Route path="wallet" element={<WalletPage />} />
+        <Route path="seller" element={<SellerCenterPage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
       </Route>

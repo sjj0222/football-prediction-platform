@@ -19,6 +19,9 @@ const Layout = () => {
     }
   };
 
+  const isAdmin = user?.role === 'admin';
+  const isSeller = user?.role === 'seller' || user?.role === 'admin';
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -61,6 +64,18 @@ const Layout = () => {
                   }
                 >
                   我的钱包
+                </NavLink>
+              )}
+              {isSeller && (
+                <NavLink
+                  to="/seller"
+                  className={({ isActive }) =>
+                    isActive
+                      ? 'text-primary font-medium'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }
+                >
+                  卖家中心
                 </NavLink>
               )}
             </nav>

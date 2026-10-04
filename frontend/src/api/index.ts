@@ -230,6 +230,11 @@ export async function sellerAddAddition(
   return response.data;
 }
 
+export async function sellerGetSales(): Promise<unknown[]> {
+  const response = await axiosForBackend.get('/api/v1/seller/orders');
+  return response.data;
+}
+
 // ========== 订单 ==========
 
 export async function buyProduct(productId: string): Promise<BuyResponse> {
