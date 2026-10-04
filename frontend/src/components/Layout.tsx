@@ -19,8 +19,6 @@ const Layout = () => {
     }
   };
 
-  const isAdmin = user?.role === 'admin';
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -53,31 +51,12 @@ const Layout = () => {
                   我的购买
                 </NavLink>
               )}
-              {isAdmin && (
-                <NavLink
-                  to="/admin"
-                  className={({ isActive }) =>
-                    isActive
-                      ? 'text-primary font-medium'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }
-                >
-                  管理后台
-                </NavLink>
-              )}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
             {user ? (
               <>
-                <span className="text-gray-600">
-                  {user.phone}
-                  {isAdmin && (
-                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">
-                      管理员
-                    </span>
-                  )}
-                </span>
+                <span className="text-gray-600">{user.phone}</span>
                 <button
                   onClick={handleLogout}
                   className="text-gray-500 hover:text-gray-700"

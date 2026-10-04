@@ -17,9 +17,9 @@ import type {
   RegisterRequest,
   LoginRequest,
   BuyResponse,
-  AdminOrderListResponse,
-  AdminCreateProductRequest,
-  AdminUpdateProductRequest,
+  SellerCreateProductRequest,
+  MatchListResponse,
+  MatchInfo,
 } from '@shared/api.interface';
 
 const TOKEN_KEY = 'liao_platform_token';
@@ -177,13 +177,63 @@ export async function getProductDetail(id: string): Promise<ProductDetail> {
   return response.data;
 }
 
+// ========== 比赛 ==========
+
+export async function getMatches(params?: {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<MatchListResponse> {
+  const response = await axiosForBackend.get('/api/v1/matches', { params });
+  return response.data;
+}
+
+export async function createMatch(data: {
+  league?: string;
+  homeTeam: string;
+  awayTeam: string;
+  matchTime: string;
+}): Promise<{ match: MatchInfo; created: boolean }> {
+  const response = await axiosForBackend.post('/api/v1/matches', data);
+  return response.data;
+}
+
+// ========== 卖家 ==========
+
+export async function sellerGetMyProducts(): Promise<ProductListResponse> {
+  const response = await axiosForBackend.get('/api/v1/seller/products');
+  return response.data;
+}
+
+export async function sellerCreateProduct(
+  data: SellerCreateProductRequest,
+): Promise<ProductDetail> {
+  const response = await axiosForBackend.post('/api/v1/seller/products', data);
+  return response.data;
+}
+
+export async function sellerSubmitProduct(id: string): Promise<ProductDetail> {
+  const response = await axiosForBackend.post(`/api/v1/seller/products/${id}/submit`);
+  return response.data;
+}
+
+export async function sellerOfflineProduct(id: string): Promise<ProductDetail> {
+  const response = await axiosForBackend.post(`/api/v1/seller/products/${id}/offline`);
+  return response.data;
+}
+
+export async function sellerAddAddition(
+  id: string,
+  content: string,
+): Promise<{ additions: string[] }> {
+  const response = await axiosForBackend.post(`/api/v1/products/${id}/additions`, { content });
+  return response.data;
+}
+
 // ========== 订单 ==========
 
 export async function buyProduct(productId: string): Promise<BuyResponse> {
-  const response = await axiosForBackend.post(
-    `/api/v1/orders/buy/${productId}`,
-    {},
-  );
+  const response = await axiosForBackend.post('/api/v1/orders', { productId });
   return response.data;
 }
 
@@ -191,78 +241,6 @@ export async function getMyOrders(params?: {
   page?: number;
   pageSize?: number;
 }): Promise<OrderListResponse> {
-  const response = await axiosForBackend.get('/api/v1/orders/my', { params });
-  return response.data;
-}
-
-export async function getMyProductContent(productId: string): Promise<{ content: string }> {
-  const response = await axiosForBackend.get(`/api/v1/orders/my/${productId}/content`);
-  return response.data;
-}
-
-// ========== 管理员 ==========
-
-export async function adminGetProducts(params?: {
-  q?: string;
-  status?: string;
-  page?: number;
-  pageSize?: number;
-}): Promise<ProductListResponse> {
-  const response = await axiosForBackend.get('/api/v1/admin/products', { params });
-  return response.data;
-}
-
-export async function adminGetProductDetail(id: string): Promise<ProductDetail> {
-  const response = await axiosForBackend.get(`/api/v1/admin/products/${id}`);
-  return response.data;
-}
-
-export async function adminCreateProduct(
-  data: AdminCreateProductRequest,
-): Promise<ProductDetail> {
-  const response = await axiosForBackend.post('/api/v1/admin/products', data);
-  return response.data;
-}
-
-export async function adminUpdateProduct(
-  id: string,
-  data: AdminUpdateProductRequest,
-): Promise<ProductDetail> {
-  const response = await axiosForBackend.put(`/api/v1/admin/products/${id}`, data);
-  return response.data;
-}
-
-export async function adminSetOnSale(id: string): Promise<ProductDetail> {
-  const response = await axiosForBackend.post(
-    `/api/v1/admin/products/${id}/on-sale`,
-    {},
-  );
-  return response.data;
-}
-
-export async function adminSetOffSale(id: string): Promise<ProductDetail> {
-  const response = await axiosForBackend.post(
-    `/api/v1/admin/products/${id}/off-sale`,
-    {},
-  );
-  return response.data;
-}
-
-export async function adminSetResult(
-  id: string,
-  result: string,
-): Promise<ProductDetail> {
-  const response = await axiosForBackend.post(
-    `/api/v1/admin/products/${id}/result`,
-    { result },
-  );
-  return response.data;
-}
-
-export async function adminGetOrders(params?: {
-  page?: number;
-  pageSize?: number;
-}): Promise<AdminOrderListResponse> {
-  const response = await axiosForBackend.get('/api/v1/admin/orders', { params });
+  const response = await axiosForBackend.get('/api/v1/orders/me', { params });
   return response.data;
 }

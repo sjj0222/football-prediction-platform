@@ -4,33 +4,10 @@ import { logger } from '../../utils/logger';
 import { Button } from '@client/src/components/ui/button';
 import { getMyOrders } from '@client/src/api';
 import { useAuth } from '@client/src/context/AuthContext';
-import type { OrderItem, ProductResult } from '@shared/api.interface';
-
-const formatMatchTime = (isoString: string): string => {
-  return new Date(isoString).toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
+import type { OrderItem } from '@shared/api.interface';
 
 const formatOrderTime = (isoString: string): string => {
   return new Date(isoString).toLocaleString('zh-CN');
-};
-
-const formatResult = (result: ProductResult): string => {
-  switch (result) {
-    case 'red':
-      return '🔴 红';
-    case 'black':
-      return '⚫ 黑';
-    case 'no_result':
-      return '无结果';
-    case 'pending':
-    default:
-      return '';
-  }
 };
 
 const MyOrdersPage: React.FC = () => {
@@ -108,7 +85,7 @@ const MyOrdersPage: React.FC = () => {
             <div className="flex-1 min-w-0">
               <div className="font-medium text-gray-900 mb-1 truncate">
                 {order.product
-                  ? `${order.product.anchorName}｜${formatMatchTime(order.product.matchTime)}｜${order.product.homeTeam} vs ${order.product.awayTeam}`
+                  ? `${order.product.title}`
                   : `商品 ${order.productId}`}
               </div>
               <div className="flex items-center gap-4 text-sm text-gray-500">
@@ -119,9 +96,9 @@ const MyOrdersPage: React.FC = () => {
                   </span>
                 </span>
                 <span>购买时间：{formatOrderTime(order.createdAt)}</span>
-                {order.product && formatResult(order.product.result) && (
+                {order.product && order.product.homeTeam && (
                   <span className="text-gray-700">
-                    {formatResult(order.product.result)}
+                    {order.product.homeTeam} vs {order.product.awayTeam}
                   </span>
                 )}
               </div>

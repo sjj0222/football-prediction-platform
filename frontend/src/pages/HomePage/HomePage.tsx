@@ -5,29 +5,16 @@ import { Search } from 'lucide-react';
 import { Button } from '@client/src/components/ui/button';
 import { Input } from '@client/src/components/ui/input';
 import { getProducts } from '@client/src/api';
-import type { ProductPublic, ProductResult } from '@shared/api.interface';
+import type { ProductPublic } from '@shared/api.interface';
 
-const formatMatchTime = (isoString: string): string => {
+const formatMatchTime = (isoString: string | undefined): string => {
+  if (!isoString) return '';
   const d = new Date(isoString);
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   const mo = String(d.getMonth() + 1).padStart(2, '0');
   const da = String(d.getDate()).padStart(2, '0');
   return `${hh}:${mm} ${mo}/${da}`;
-};
-
-const formatResult = (result: ProductResult): string => {
-  switch (result) {
-    case 'red':
-      return '🔴 红';
-    case 'black':
-      return '⚫ 黑';
-    case 'no_result':
-      return '无结果';
-    case 'pending':
-    default:
-      return '';
-  }
 };
 
 const HomePage: React.FC = () => {
@@ -124,21 +111,24 @@ const HomePage: React.FC = () => {
                            flex flex-col gap-3"
               >
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-gray-900">{p.anchorName}</span>
-                  <span className="text-gray-500">{formatMatchTime(p.matchTime)}</span>
+                  <span className="font-medium text-gray-900">{p.title}</span>
+                  {p.league && (
+                    <span className="text-gray-400 text-xs">{p.league}</span>
+                  )}
                 </div>
                 <div className="text-base font-semibold text-gray-800">
                   {p.homeTeam} vs {p.awayTeam}
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    {formatMatchTime(p.matchTime)}
+                  </span>
                 </div>
+                {p.description && (
+                  <div className="text-sm text-gray-500 line-clamp-2">{p.description}</div>
+                )}
                 <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                   <span className="text-xl font-bold text-orange-600">
                     ¥{p.price}
                   </span>
-                  {formatResult(p.result) && (
-                    <span className="text-sm text-gray-700">
-                      {formatResult(p.result)}
-                    </span>
-                  )}
                 </div>
               </div>
             ))}
