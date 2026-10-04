@@ -2,10 +2,11 @@ import {
   Controller,
   Get,
   Post,
-  Param,
+  Body,
   Query,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { OrdersService } from './orders.service';
@@ -18,16 +19,20 @@ import type { BuyResponse, OrderListResponse } from '@shared/api.interface';
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  @Post('buy/:productId')
+  // 购买：POST /orders  { productId }
+  @Post()
   async buy(
     @Req() req: AuthenticatedRequest,
-    @Param('productId') productId: string,
+    @Body() dto: { productId: string },
   ): Promise<BuyResponse> {
-    const userId = req.user.id;
-    return this.ordersService.buy(userId, productId);
+    if (!dto.productId) {
+      throw new BadRequestException('缺少 productId');
+    }
+    return this.ordersService.buy(req.user.id, dto.productId);
   }
 
-  @Get('my')
+  // 我的订单
+  @Get('me')
   async getMyOrders(
     @Req() req: AuthenticatedRequest,
     @Query('page') page?: string,
@@ -37,14 +42,5 @@ export class OrdersController {
     const currentPage = page && Number(page) > 0 ? Number(page) : 1;
     const currentPageSize = pageSize && Number(pageSize) > 0 && Number(pageSize) <= 100 ? Number(pageSize) : 10;
     return this.ordersService.getMyOrders(userId, currentPage, currentPageSize);
-  }
-
-  @Get('my/:productId/content')
-  async getPurchasedContent(
-    @Req() req: AuthenticatedRequest,
-    @Param('productId') productId: string,
-  ): Promise<{ content: string }> {
-    const userId = req.user.id;
-    return this.ordersService.getPurchasedContent(userId, productId);
   }
 }
