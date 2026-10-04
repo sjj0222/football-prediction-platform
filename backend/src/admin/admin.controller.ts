@@ -10,8 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { AdminGuard } from './admin.guard';
-import type { AdminAuthenticatedRequest } from './admin.guard';
+import { AuthGuard } from '../auth/auth.guard';
+import type { AuthenticatedRequest } from '../auth/auth.guard';
+import { RolesGuard } from '../common/auth/roles.guard';
+import { AdminOnly } from '../common/auth/roles.decorator';
 import { AdminCreateProductDto } from './dto/admin-create-product.dto';
 import { AdminUpdateProductDto } from './dto/admin-update-product.dto';
 import { AdminSetResultDto } from './dto/admin-set-result.dto';
@@ -23,7 +25,8 @@ import type {
 } from '@shared/api.interface';
 
 @Controller('admin')
-@UseGuards(AdminGuard)
+@UseGuards(AuthGuard, RolesGuard)
+@AdminOnly()
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
@@ -48,7 +51,7 @@ export class AdminController {
 
   @Post('products')
   async createProduct(
-    @Req() req: AdminAuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
     @Body() dto: AdminCreateProductDto,
   ): Promise<ProductDetail> {
     const { id: userId } = req.user;
@@ -58,7 +61,7 @@ export class AdminController {
   @Put('products/:id')
   async updateProduct(
     @Param('id') id: string,
-    @Req() req: AdminAuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
     @Body() dto: AdminUpdateProductDto,
   ): Promise<ProductDetail> {
     const { id: userId } = req.user;
@@ -68,7 +71,7 @@ export class AdminController {
   @Post('products/:id/on-sale')
   async onSaleProduct(
     @Param('id') id: string,
-    @Req() req: AdminAuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ProductDetail> {
     const { id: userId } = req.user;
     return this.adminService.setProductOnSale(id, userId);
@@ -77,7 +80,7 @@ export class AdminController {
   @Post('products/:id/off-sale')
   async offSaleProduct(
     @Param('id') id: string,
-    @Req() req: AdminAuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
   ): Promise<ProductDetail> {
     const { id: userId } = req.user;
     return this.adminService.setProductOffSale(id, userId);
@@ -86,7 +89,7 @@ export class AdminController {
   @Post('products/:id/result')
   async setProductResult(
     @Param('id') id: string,
-    @Req() req: AdminAuthenticatedRequest,
+    @Req() req: AuthenticatedRequest,
     @Body() dto: AdminSetResultDto,
   ): Promise<ProductDetail> {
     const { id: userId } = req.user;
