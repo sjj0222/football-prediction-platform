@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { join } from 'path';
 import { __express as hbsExpressEngine } from 'hbs';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
@@ -24,6 +25,17 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const host = process.env.SERVER_HOST || 'localhost';
   const port = Number(process.env.SERVER_PORT || 3000);
+
+  // Swagger API 文档
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('卖料平台 API')
+    .setDescription('足球内容交易平台（V0.2.1 稳定版）')
+    .setVersion('0.2.1')
+    .addBearerAuth()
+    .build();
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api-docs', app, document);
+  logger.log('Swagger UI ready at /api/v1/api-docs');
 
   // 注册视图引擎, 渲染 client 目录下的 html 文件
   app.setBaseViewsDir(join(process.cwd(), 'dist/frontend'));
