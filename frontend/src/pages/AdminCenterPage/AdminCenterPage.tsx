@@ -108,16 +108,16 @@ const AdminCenterPage: React.FC = () => {
     }
   }, []);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
+  const fetchLogs = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await adminGetLogs({ pageSize: 50 });
       setLogs(res.items);
     } catch (e) {
       logger.error('获取日志失败', e);
-      message.error('获取日志失败');
+      if (!silent) message.error('获取日志失败');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -138,6 +138,15 @@ const AdminCenterPage: React.FC = () => {
     void fetchLogs();
   }, [user, authLoading, navigate, fetchUsers, fetchProducts, fetchOrders, fetchLogs]);
 
+  // 操作日志实时更新：日志 tab 打开时每 5 秒静默刷新
+  useEffect(() => {
+    if (tab !== 'logs') return;
+    const timer = setInterval(() => {
+      void fetchLogs(true);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [tab, fetchLogs]);
+
   const refreshAll = useCallback(() => {
     void fetchUsers();
     void fetchProducts();
@@ -150,6 +159,7 @@ const AdminCenterPage: React.FC = () => {
       await adminSetUserRole(id, role);
       message.success(role === 'seller' ? '已设为卖家' : '已取消卖家');
       void fetchUsers();
+      void fetchLogs();
     } catch (e) {
       const err = e as { response?: { data?: { message?: string } } };
       message.error(err.response?.data?.message ?? '操作失败');
@@ -166,6 +176,7 @@ const AdminCenterPage: React.FC = () => {
         message.success('已解冻');
       }
       void fetchUsers();
+      void fetchLogs();
     } catch (e) {
       const err = e as { response?: { data?: { message?: string } } };
       message.error(err.response?.data?.message ?? '操作失败');
@@ -183,6 +194,7 @@ const AdminCenterPage: React.FC = () => {
       message.success(`已重置 ${resetTarget.phone} 的密码`);
       setResetTarget(null);
       setNewPassword('');
+      void fetchLogs();
     } catch (e) {
       const err = e as { response?: { data?: { message?: string } } };
       message.error(err.response?.data?.message ?? '重置失败');
@@ -202,6 +214,7 @@ const AdminCenterPage: React.FC = () => {
         if (action === 'delete') await adminDeleteProduct(id);
         message.success('操作成功');
         void fetchProducts();
+        void fetchLogs();
       } catch (e) {
         const err = e as { response?: { data?: { message?: string } } };
         message.error(err.response?.data?.message ?? '操作失败');
@@ -232,6 +245,7 @@ const AdminCenterPage: React.FC = () => {
           await adminRefundOrder(id);
           message.success('已退款');
           void fetchOrders();
+          void fetchLogs();
         } catch (e) {
           const err = e as { response?: { data?: { message?: string } } };
           message.error(err.response?.data?.message ?? '退款失败');
@@ -273,8 +287,8 @@ const AdminCenterPage: React.FC = () => {
       {loading && <div className="text-center py-10 text-gray-500">加载中...</div>}
 
       {!loading && tab === 'users' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="text-left px-4 py-3">手机号</th>
@@ -303,7 +317,7 @@ const AdminCenterPage: React.FC = () => {
                       {statusLabel[u.status] ?? u.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 flex gap-2">
+                  <td className="px-4 py-3 flex flex-wrap gap-2">
                     {u.role !== 'admin' && (
                       <>
                         <button
@@ -338,8 +352,8 @@ const AdminCenterPage: React.FC = () => {
       )}
 
       {!loading && tab === 'products' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="text-left px-4 py-3">标题</th>
@@ -372,7 +386,7 @@ const AdminCenterPage: React.FC = () => {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-500">{p.sellerPhone}</td>
-                  <td className="px-4 py-3 flex gap-2">
+                  <td className="px-4 py-3 flex flex-wrap gap-2">
                     {p.status === 'pending_review' && (
                       <>
                         <button
@@ -414,8 +428,8 @@ const AdminCenterPage: React.FC = () => {
       )}
 
       {!loading && tab === 'orders' && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="text-left px-4 py-3">商品</th>
