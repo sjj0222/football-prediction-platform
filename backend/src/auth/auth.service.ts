@@ -127,12 +127,16 @@ export class AuthService {
 
   async getUserById(userId: string): Promise<UserInfo | null> {
     const rows = await this.db
-      .select({ id: users.id, phone: users.phone, role: users.role })
+      .select({ id: users.id, phone: users.phone, role: users.role, status: users.status })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
     if (rows.length === 0) {
+      return null;
+    }
+    // 冻结用户：即使持有未过期 token 也视为未认证（即时失效）
+    if (!this.isUserActive(rows[0].status)) {
       return null;
     }
     return this.toUserInfo(rows[0]);
