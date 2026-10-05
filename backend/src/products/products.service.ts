@@ -218,7 +218,11 @@ export class ProductsService {
     if (!dto.matchId) throw new BadRequestException('请选择比赛');
     if (!dto.title?.trim()) throw new BadRequestException('请填写商品标题');
     if (!dto.content?.trim()) throw new BadRequestException('请填写商品内容');
-    if (!dto.price || Number(dto.price) < 0) throw new BadRequestException('价格必须大于等于 0');
+    // 价格校验：必须为有限非负数字（拦截 NaN、Infinity、负数）
+    if (!dto.price || !Number.isFinite(Number(dto.price)) || Number(dto.price) < 0) {
+      throw new BadRequestException('价格必须为大于等于 0 的数字');
+    }
+    const priceNum = Number(dto.price);
 
     // 校验比赛存在
     const matchRows = await this.db
@@ -238,7 +242,7 @@ export class ProductsService {
         title: dto.title.trim(),
         description: dto.description?.trim() ?? '',
         content: dto.content,
-        price: String(dto.price),
+        price: String(priceNum),
         status: 'draft',
       })
       .returning();

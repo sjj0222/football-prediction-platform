@@ -7,6 +7,7 @@ import {
   Query,
   Req,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { AdminService, type AdminUserItem } from './admin.service';
 import { AuthGuard } from '../auth/auth.guard';
@@ -66,7 +67,7 @@ export class AdminController {
     @Body() dto: { role: 'seller' | 'buyer' },
   ): Promise<AdminUserItem> {
     if (dto.role !== 'seller' && dto.role !== 'buyer') {
-      throw new Error('无效角色');
+      throw new BadRequestException('无效角色');
     }
     return this.adminService.setSeller(id, dto.role, req.user.id);
   }
