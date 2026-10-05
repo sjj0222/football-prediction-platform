@@ -2,6 +2,7 @@ import { Injectable, Inject, Logger, NotFoundException, ForbiddenException, BadR
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../database/database.module';
 import { eq, and, count, desc, ilike, or, asc, isNull } from 'drizzle-orm';
 import { products, matches, orders, productAdditions, users } from '@server/database/schema';
+import { parseValidPrice } from './price.util';
 import type {
   ProductPublic,
   ProductDetail,
@@ -219,10 +220,10 @@ export class ProductsService {
     if (!dto.title?.trim()) throw new BadRequestException('请填写商品标题');
     if (!dto.content?.trim()) throw new BadRequestException('请填写商品内容');
     // 价格校验：必须为有限非负数字（拦截 NaN、Infinity、负数）
-    if (!dto.price || !Number.isFinite(Number(dto.price)) || Number(dto.price) < 0) {
+    const priceNum = parseValidPrice(dto.price);
+    if (priceNum === null) {
       throw new BadRequestException('价格必须为大于等于 0 的数字');
     }
-    const priceNum = Number(dto.price);
 
     // 校验比赛存在
     const matchRows = await this.db
