@@ -11,7 +11,9 @@
     "build:client": "vite build",
     "start": "cross-env NODE_ENV=production node dist/backend/src/main.js",
     "type:check": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.app.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "tunnel": "npx localtunnel --port 3000",
+    "tunnel:cloudflare": "cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",

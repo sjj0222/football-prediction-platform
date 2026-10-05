@@ -59,7 +59,22 @@ npm run build  # 前后端生产构建
 npm start      # 生产运行（后端 :3000，托管前端产物）
 ```
 
-## 七、角色与权限
+## 七、公网访问（映射到公网）
+
+本地运行后，如需让手机或其他设备访问（演示/联调），一键映射：
+
+```bash
+npm run tunnel                  # localtunnel（无需注册，推荐）
+npm run tunnel:cloudflare       # 需先安装 cloudflared：https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads
+```
+
+Windows 也可直接双击根目录 `start-tunnel.bat`。
+
+映射启动后，从输出中复制 `https://xxxx.loca.lt` 地址即可访问（localtunnel 首次访问会要求输入公网 IP 完成验证；连接中断时映射地址会变化，重新运行即可）。
+
+> 注意：公网映射会把本机服务暴露到互联网，仅建议临时演示使用；涉及真实数据时请勿开启。
+
+## 八、角色与权限
 
 | 角色 | 来源 | 权限 |
 | --- | --- | --- |
@@ -67,7 +82,7 @@ npm start      # 生产运行（后端 :3000，托管前端产物）
 | seller | 管理员指定（不能自行注册） | 创建商品、提交审核、销售记录；同时拥有 buyer 权限 |
 | admin | 管理员账号 | 用户管理、指定卖家、商品审核/删除、退款、修改余额、查看日志 |
 
-## 八、V0.2 核心业务规则
+## 九、V0.2 核心业务规则
 
 - **商品生命周期**：draft → pending_review → online → offline → deleted
 - **价格**：创建后固定，不可修改
@@ -77,7 +92,7 @@ npm start      # 生产运行（后端 :3000，托管前端产物）
 - **订单**：paid / refunded，禁止删除；同一用户同一商品仅可购买一次
 - **所有管理操作写入 admin_logs**
 
-## 九、测试账号（本地开发环境示例数据）
+## 十、测试账号（本地开发环境示例数据）
 
 | 手机号 | 密码 | 角色 | 备注 |
 | --- | --- | --- | --- |
@@ -88,7 +103,7 @@ npm start      # 生产运行（后端 :3000，托管前端产物）
 
 > 数据库如被清空，按第四节手动指定一个 admin 即可重新使用。
 
-## 十、API 一览（统一前缀 /api/v1）
+## 十一、API 一览（统一前缀 /api/v1）
 
 ```
 POST /auth/register            注册（手机号唯一，409 冲突）
@@ -118,7 +133,7 @@ POST /admin/orders/:id/refund  订单退款（admin）
 GET  /admin/logs               操作日志（admin）
 ```
 
-## 十一、目录结构
+## 十二、目录结构
 
 ```
 frontend/       前端 React（pages/components/api/context/hooks/router/utils）
@@ -128,7 +143,7 @@ shared/         前后端共享类型（api.interface.ts）
 scripts/init.sql 建表脚本（与 schema.ts 对齐）
 ```
 
-## 十二、说明
+## 十三、说明
 
 - 平台仅为内容托管展示，不对料的真实性负责；不提供投注功能
 - V0.2 明确未实现：AI 预测、自动推荐、胜率统计、评分系统、社区、评论、会员、真实支付
