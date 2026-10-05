@@ -350,27 +350,42 @@ export class AdminService {
    * 管理员确认 → 商品删除（软删） → 查询购买用户 → 全部退款 → 记录日志
    */
   async deleteProduct(id: string, adminId: string, reason?: string): Promise<{ ok: true }> {
-    const rows = await this.db.select().from(products).where(eq(products.id, id)).limit(1);
-    if (rows.length === 0) {
+    const quick = await this.db
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.id, id))
+      .limit(1);
+    if (quick.length === 0) {
       throw new NotFoundException('商品不存在');
-    }
-    const product = rows[0];
-    if (product.deletedAt) {
-      throw new BadRequestException('商品已删除');
     }
 
     await this.db.transaction(async (tx) => {
+      // 锁商品行：同一商品并发删除串行化，防止重复执行退款
+      const locked = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, id))
+        .for('update')
+        .limit(1);
+      if (locked.length === 0) {
+        throw new NotFoundException('商品不存在');
+      }
+      if (locked[0].deletedAt) {
+        throw new BadRequestException('商品已删除');
+      }
+
       // 软删除商品
       await tx
         .update(products)
         .set({ status: 'deleted', deletedAt: new Date(), updatedAt: new Date() })
         .where(eq(products.id, id));
 
-      // 查询该商品所有已支付订单
+      // 查询该商品所有已支付订单（锁订单行，与单笔退款互斥，防双重退款）
       const paidOrders = await tx
         .select()
         .from(orders)
-        .where(and(eq(orders.productId, id), eq(orders.status, 'paid')));
+        .where(and(eq(orders.productId, id), eq(orders.status, 'paid')))
+        .for('update');
 
       // 全部退款（幂等：钱包记 refund 正数，订单置 refunded）
       for (const order of paidOrders) {
@@ -378,7 +393,7 @@ export class AdminService {
           userId: order.buyerId,
           amount: String(Number(order.price)),
           type: 'refund',
-          remark: `商品删除退款：${product.title}`,
+          remark: `商品删除退款：${locked[0].title}`,
         });
         await tx
           .update(orders)
@@ -445,22 +460,37 @@ export class AdminService {
 
   /** 单笔退款：paid → refunded + 钱包退回（幂等） */
   async refundOrder(orderId: string, adminId: string, reason?: string): Promise<{ ok: true }> {
-    const rows = await this.db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
-    if (rows.length === 0) {
+    const quick = await this.db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    if (quick.length === 0) {
       throw new NotFoundException('订单不存在');
     }
-    const order = rows[0];
-    if (order.status === 'refunded') {
-      throw new BadRequestException('订单已退款');
-    }
-    const productRows = await this.db
-      .select({ title: products.title })
-      .from(products)
-      .where(eq(products.id, order.productId))
-      .limit(1);
-    const productTitle = productRows[0]?.title ?? '';
 
     await this.db.transaction(async (tx) => {
+      // 锁订单行：同一订单并发退款串行化，防止双重退款
+      const locked = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .for('update')
+        .limit(1);
+      if (locked.length === 0) {
+        throw new NotFoundException('订单不存在');
+      }
+      if (locked[0].status === 'refunded') {
+        throw new BadRequestException('订单已退款');
+      }
+      const order = locked[0];
+      const productRows = await tx
+        .select({ title: products.title })
+        .from(products)
+        .where(eq(products.id, order.productId))
+        .limit(1);
+      const productTitle = productRows[0]?.title ?? '';
+
       await tx.insert(walletTransactions).values({
         userId: order.buyerId,
         amount: String(Number(order.price)),
