@@ -45,6 +45,14 @@ async function bootstrap() {
   // 托管前端构建产物（/assets/*.js、/favicon.svg 等）
   app.useStaticAssets(join(process.cwd(), 'dist/frontend'));
 
+  // SPA fallback：非 /api 的 GET 请求返回 index.html，支持前端路由（如 /login、/seller）刷新/直达
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(join(process.cwd(), 'dist/frontend', 'index.html'));
+  });
+
   await app.listen(port, host);
   logger.log(`Server running on http://${host}:${port}`);
   logger.log(`API endpoints ready at http://${host}:${port}/api/v1`);

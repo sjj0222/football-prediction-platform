@@ -343,7 +343,7 @@ const SellerCenterPage: React.FC = () => {
                     onOpenChange={setMatchPickerOpen}
                     onChange={(v) => {
                       setMatchTime(v ? v.format('YYYY-MM-DD HH:mm') : '');
-                      // 点完时间后自动收起面板
+                      // 点击确认后收起面板
                       setMatchPickerOpen(false);
                     }}
                     className="w-full"
