@@ -70,3 +70,5 @@ dist/
 # dev logs
 server-dev.log
 client-dev.log
+tunnel.log
+*.out.txt
