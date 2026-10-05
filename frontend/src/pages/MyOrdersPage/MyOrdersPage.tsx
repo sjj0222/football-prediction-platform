@@ -88,7 +88,7 @@ const MyOrdersPage: React.FC = () => {
                   ? `${order.product.title}`
                   : `商品 ${order.productId}`}
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                 <span>
                   购买价格：
                   <span className="text-orange-600 font-semibold">
