@@ -1,7 +1,7 @@
 import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common';
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../database/database.module';
 import { eq, and, desc, count, isNull, sql } from 'drizzle-orm';
-import { orders, products, matches, walletTransactions } from '@server/database/schema';
+import { orders, products, matches, walletTransactions, users } from '@server/database/schema';
 import type { BuyResponse, OrderItem, OrderListResponse } from '@shared/api.interface';
 
 @Injectable()
@@ -57,6 +57,27 @@ export class OrdersService {
     // 事务：扣款 + 生成订单
     try {
       const result = await this.db.transaction(async (tx) => {
+        // 锁用户行：同一用户并发购买串行化，防止余额检查竞态导致超扣
+        const lockedUser = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update')
+          .limit(1);
+        if (lockedUser.length === 0) {
+          throw new BadRequestException('用户不存在');
+        }
+
+        // 事务内重新校验余额（行锁生效后读取最新值，余额不足则回滚）
+        const balanceRows = await tx
+          .select({ total: sql<string>`COALESCE(SUM(${walletTransactions.amount}), 0)` })
+          .from(walletTransactions)
+          .where(eq(walletTransactions.userId, userId));
+        const balanceNow = Number(balanceRows[0]?.total ?? 0);
+        if (balanceNow < price) {
+          throw new BadRequestException('余额不足，请先充值');
+        }
+
         // 扣款流水（负数）
         await tx.insert(walletTransactions).values({
           userId,
