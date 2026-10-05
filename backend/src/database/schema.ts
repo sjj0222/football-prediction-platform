@@ -41,6 +41,7 @@ export const products = pgTable('products', {
   id: uuid('id').primaryKey().defaultRandom(),
   sellerId: uuid('seller_id').notNull(),
   matchId: uuid('match_id').notNull(),
+  author: varchar('author', { length: 100 }).notNull().default(''),
   title: varchar('title', { length: 200 }).notNull(),
   description: text('description').notNull().default(''),
   content: text('content').notNull().default(''),

@@ -556,6 +556,7 @@ export class AdminService {
     id: string;
     sellerId: string;
     matchId: string;
+    author: string;
     title: string;
     description: string;
     content: string;
@@ -569,6 +570,7 @@ export class AdminService {
       id: row.id,
       sellerId: row.sellerId,
       matchId: row.matchId,
+      author: row.author,
       title: row.title,
       description: row.description,
       content: row.content,

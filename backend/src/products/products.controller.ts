@@ -53,7 +53,7 @@ export class ProductsController {
     @Req() req: Request,
     @Body() dto: SellerAddAdditionRequest,
   ): Promise<{ additions: string[] }> {
-    const user = (req as { user: { id: string } }).user;
+    const user = (req as unknown as { user: { id: string } }).user;
     return this.productsService.addAddition(id, dto.content, user.id);
   }
 }

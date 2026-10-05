@@ -181,6 +181,7 @@ export class OrdersService {
         id: row.productId,
         sellerId: row.sellerId,
         matchId: '',
+        author: '',
         title: row.title,
         description: row.description,
         price: String(row.price),

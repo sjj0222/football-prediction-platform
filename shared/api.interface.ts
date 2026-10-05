@@ -42,6 +42,8 @@ export interface ProductPublic {
   id: string;
   sellerId: string;
   matchId: string;
+  /** 作者（主播）名称 */
+  author: string;
   title: string;
   description: string;
   price: string;
@@ -70,10 +72,10 @@ export interface ProductListResponse {
   pageSize: number;
 }
 
-/** 卖家创建商品 */
+/** 卖家创建商品（标题由后端按「作者｜比赛时间｜主队 vs 客队」自动生成） */
 export interface SellerCreateProductRequest {
   matchId: string;
-  title: string;
+  author: string;
   description?: string;
   content: string;
   price: number;
@@ -126,7 +128,7 @@ export interface LoginResponse {
 
 export interface AdminCreateProductRequest {
   matchId: string;
-  title: string;
+  author: string;
   description?: string;
   content: string;
   price: number;

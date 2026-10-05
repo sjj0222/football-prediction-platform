@@ -13,7 +13,7 @@ export class WalletController {
   @Get('balance')
   @UseGuards(AuthGuard)
   async getBalance(@Req() req: Request): Promise<WalletBalance> {
-    const user = (req as { user: { id: string } }).user;
+    const user = (req as unknown as { user: { id: string } }).user;
     return this.walletService.getBalance(user.id);
   }
 
@@ -25,7 +25,7 @@ export class WalletController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ): Promise<{ items: WalletTransactionItem[]; total: number; page: number; pageSize: number }> {
-    const user = (req as { user: { id: string } }).user;
+    const user = (req as unknown as { user: { id: string } }).user;
     const pageNum = page && Number(page) > 0 ? Number(page) : 1;
     const pageSizeNum = pageSize && Number(pageSize) > 0 ? Math.min(Number(pageSize), 50) : 20;
     return this.walletService.listTransactions(user.id, pageNum, pageSizeNum);

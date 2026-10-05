@@ -2,7 +2,7 @@ import { Injectable, Inject, Logger, NotFoundException, ForbiddenException, BadR
 import { DRIZZLE_DATABASE, type PostgresJsDatabase } from '../database/database.module';
 import { eq, and, count, desc, ilike, or, asc, isNull } from 'drizzle-orm';
 import { products, matches, orders, productAdditions, users } from '@server/database/schema';
-import { parseValidPrice } from './price.util';
+import { parseValidPrice, MIN_PRICE } from './price.util';
 import type {
   ProductPublic,
   ProductDetail,
@@ -56,6 +56,7 @@ export class ProductsService {
             id: products.id,
             sellerId: products.sellerId,
             matchId: products.matchId,
+            author: products.author,
             title: products.title,
             description: products.description,
             price: products.price,
@@ -96,6 +97,7 @@ export class ProductsService {
         id: products.id,
         sellerId: products.sellerId,
         matchId: products.matchId,
+        author: products.author,
         title: products.title,
         description: products.description,
         price: products.price,
@@ -132,6 +134,7 @@ export class ProductsService {
           id: products.id,
           sellerId: products.sellerId,
           matchId: products.matchId,
+          author: products.author,
           title: products.title,
           description: products.description,
           content: products.content,
@@ -214,33 +217,41 @@ export class ProductsService {
     }
   }
 
-  /** 卖家创建商品（draft） */
+  /** 卖家创建商品（draft）。标题固定为「作者｜比赛时间｜主队 vs 客队」，由后端生成。 */
   async createBySeller(dto: SellerCreateProductRequest, sellerId: string): Promise<ProductDetail> {
     if (!dto.matchId) throw new BadRequestException('请选择比赛');
-    if (!dto.title?.trim()) throw new BadRequestException('请填写商品标题');
+    const author = dto.author?.trim();
+    if (!author) throw new BadRequestException('请填写作者');
     if (!dto.content?.trim()) throw new BadRequestException('请填写商品内容');
-    // 价格校验：必须为有限非负数字（拦截 NaN、Infinity、负数）
+    // 价格校验：必须为有限数字且不低于最低价 10 元
     const priceNum = parseValidPrice(dto.price);
     if (priceNum === null) {
-      throw new BadRequestException('价格必须为大于等于 0 的数字');
+      throw new BadRequestException(`价格必须为不低于 ${MIN_PRICE} 元的数字`);
     }
 
-    // 校验比赛存在
+    // 校验比赛存在并取比赛信息用于生成标题
     const matchRows = await this.db
-      .select({ id: matches.id })
+      .select({
+        id: matches.id,
+        homeTeam: matches.homeTeam,
+        awayTeam: matches.awayTeam,
+        matchTime: matches.matchTime,
+      })
       .from(matches)
       .where(eq(matches.id, dto.matchId))
       .limit(1);
     if (matchRows.length === 0) {
       throw new BadRequestException('比赛不存在');
     }
+    const match = matchRows[0];
 
     const inserted = await this.db
       .insert(products)
       .values({
         sellerId,
         matchId: dto.matchId,
-        title: dto.title.trim(),
+        author,
+        title: this.buildProductTitle(author, match),
         description: dto.description?.trim() ?? '',
         content: dto.content,
         price: String(priceNum),
@@ -250,6 +261,19 @@ export class ProductsService {
 
     // 返回完整详情（含比赛信息）
     return this.getDetail(inserted[0].id, { userId: sellerId, role: 'seller' });
+  }
+
+  /** 商品标题：作者｜比赛时间(MM-DD HH:mm)｜主队 vs 客队 */
+  private buildProductTitle(
+    author: string,
+    match: { homeTeam: string; awayTeam: string; matchTime: Date },
+  ): string {
+    const d = new Date(match.matchTime);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${author}｜${mm}-${dd} ${hh}:${mi}｜${match.homeTeam} vs ${match.awayTeam}`;
   }
 
   /** 卖家提交审核：draft → pending_review */
@@ -319,6 +343,7 @@ export class ProductsService {
     id: string;
     sellerId: string;
     matchId: string;
+    author: string;
     title: string;
     description: string;
     price: string;
@@ -334,6 +359,7 @@ export class ProductsService {
       id: row.id,
       sellerId: row.sellerId,
       matchId: row.matchId,
+      author: row.author,
       title: row.title,
       description: row.description,
       price: String(row.price),
