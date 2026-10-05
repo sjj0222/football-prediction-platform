@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
+import { message, DatePicker } from 'antd';
+import dayjs from 'dayjs';
 import { logger } from '../../utils/logger';
 import {
   sellerGetMyProducts,
@@ -42,7 +43,7 @@ const SellerCenterPage: React.FC = () => {
 
   // 创建商品表单
   const [matchId, setMatchId] = useState<string | undefined>();
-  const [title, setTitle] = useState('');
+  const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
   const [price, setPrice] = useState('');
@@ -52,6 +53,7 @@ const SellerCenterPage: React.FC = () => {
   const [homeTeam, setHomeTeam] = useState('');
   const [awayTeam, setAwayTeam] = useState('');
   const [matchTime, setMatchTime] = useState('');
+  const [matchPickerOpen, setMatchPickerOpen] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -154,8 +156,8 @@ const SellerCenterPage: React.FC = () => {
       message.warning('请选择比赛');
       return;
     }
-    if (!title.trim()) {
-      message.warning('请填写商品标题');
+    if (!author.trim()) {
+      message.warning('请填写作者');
       return;
     }
     if (!content.trim()) {
@@ -163,21 +165,21 @@ const SellerCenterPage: React.FC = () => {
       return;
     }
     const priceNum = Number(price);
-    if (Number.isNaN(priceNum) || priceNum < 0) {
-      message.warning('价格必须为大于等于 0 的数字');
+    if (Number.isNaN(priceNum) || priceNum < 10) {
+      message.warning('价格最低为 10 元');
       return;
     }
     setSubmitting(true);
     try {
       const created = await sellerCreateProduct({
         matchId,
-        title: title.trim(),
+        author: author.trim(),
         description: description.trim() || undefined,
         content,
         price: priceNum,
       });
       message.success('商品已创建（草稿），可提交审核');
-      setTitle('');
+      setAuthor('');
       setDescription('');
       setContent('');
       setPrice('');
@@ -312,12 +314,12 @@ const SellerCenterPage: React.FC = () => {
                 + 比赛不存在？创建新比赛
               </button>
             ) : (
-              <div className="mt-3 p-4 bg-gray-50 rounded-lg grid grid-cols-2 gap-3">
+              <div className="mt-3 p-4 bg-gray-50 rounded-lg grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   value={league}
                   onChange={(e) => setLeague(e.target.value)}
                   placeholder="联赛（可选）"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm col-span-2"
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm sm:col-span-2"
                 />
                 <input
                   value={homeTeam}
@@ -331,15 +333,25 @@ const SellerCenterPage: React.FC = () => {
                   placeholder="客队 *"
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 />
-                <input
-                  type="datetime-local"
-                  value={matchTime}
-                  onChange={(e) => setMatchTime(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm col-span-2"
-                />
+                <div className="sm:col-span-2">
+                  <DatePicker
+                    showTime
+                    format="YYYY-MM-DD HH:mm"
+                    placeholder="选择比赛时间 *"
+                    value={matchTime ? dayjs(matchTime) : undefined}
+                    open={matchPickerOpen}
+                    onOpenChange={setMatchPickerOpen}
+                    onChange={(v) => {
+                      setMatchTime(v ? v.format('YYYY-MM-DD HH:mm') : '');
+                      // 点完时间后自动收起面板
+                      setMatchPickerOpen(false);
+                    }}
+                    className="w-full"
+                  />
+                </div>
                 <button
                   onClick={handleCreateMatch}
-                  className="px-3 py-1.5 bg-primary text-white rounded-lg text-sm col-span-2 hover:opacity-90"
+                  className="px-3 py-1.5 bg-primary text-white rounded-lg text-sm sm:col-span-2 hover:opacity-90"
                 >
                   创建比赛
                 </button>
@@ -348,13 +360,16 @@ const SellerCenterPage: React.FC = () => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm text-gray-600 mb-1">商品标题 *</label>
+            <label className="block text-sm text-gray-600 mb-1">作者 *</label>
             <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：老A｜10-10 19:30｜阿森纳 vs 切尔西"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              placeholder="例如：老A"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
+            <p className="text-xs text-gray-400 mt-1">
+              商品标题将自动生成：作者｜比赛时间｜主队 vs 客队
+            </p>
           </div>
 
           <div className="mb-4">
@@ -379,12 +394,13 @@ const SellerCenterPage: React.FC = () => {
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm text-gray-600 mb-1">价格 *（创建后不可修改）</label>
+            <label className="block text-sm text-gray-600 mb-1">价格 *（最低 10 元，创建后不可修改）</label>
             <input
               type="number"
+              min={10}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              placeholder="0"
+              placeholder="10"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
             />
           </div>
